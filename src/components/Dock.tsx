@@ -1,14 +1,24 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import gsap from "gsap";
 
 const items = [
   { id: "hero", label: "Home" },
-  { id: "demo", label: "Demo" },
-  { id: "desk", label: "Desk" },
+  { id: "desk", label: "Deal" },
   { id: "how", label: "How" },
   { id: "why", label: "Uses" },
   { id: "tech", label: "Tech" },
 ];
+
+function pillSpot(active: HTMLElement) {
+  const size = Math.round(Math.min(active.offsetWidth, active.offsetHeight) - 8);
+  return {
+    x: active.offsetLeft + (active.offsetWidth - size) / 2,
+    y: active.offsetTop + (active.offsetHeight - size) / 2,
+    width: size,
+    height: size,
+  };
+}
 
 export function Dock() {
   const [current, setCurrent] = useState("hero");
@@ -23,12 +33,7 @@ export function Dock() {
     const active = dock.querySelector<HTMLElement>("[aria-current='true']");
     if (!active) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const spot = {
-      x: active.offsetLeft,
-      y: active.offsetTop,
-      width: active.offsetWidth,
-      height: active.offsetHeight,
-    };
+    const spot = pillSpot(active);
     if (!placed.current || reduce) {
       gsap.set(pill, spot);
       placed.current = true;
@@ -36,6 +41,23 @@ export function Dock() {
     }
     gsap.to(pill, { ...spot, duration: 0.38, ease: "power2.out", overwrite: "auto" });
   }, [current]);
+
+  useEffect(() => {
+    const dock = dockRef.current;
+    const pill = pillRef.current;
+    const place = () => {
+      const active = dock?.querySelector<HTMLElement>("[aria-current='true']");
+      if (!dock || !pill || !active) return;
+      gsap.set(pill, pillSpot(active));
+    };
+    window.addEventListener("resize", place);
+    const ro = new ResizeObserver(place);
+    if (dock) ro.observe(dock);
+    return () => {
+      window.removeEventListener("resize", place);
+      ro.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const nodes = items
@@ -54,7 +76,7 @@ export function Dock() {
     return () => observer.disconnect();
   }, []);
 
-  return (
+  return createPortal(
     <nav className="dock" aria-label="Sections" ref={dockRef}>
       <span className="dock-pill" ref={pillRef} aria-hidden="true" />
       {items.map((item) => (
@@ -63,16 +85,14 @@ export function Dock() {
           href={`#${item.id}`}
           aria-current={current === item.id}
           className={item.id === "hero" ? "pressable" : undefined}
+          onClick={() => setCurrent(item.id)}
         >
           <Icon name={item.id} />
           <span>{item.label}</span>
         </a>
       ))}
-      <a href="https://x.com/nirempathys" target="_blank" rel="noreferrer" aria-label="Follow @nirempathys on X">
-        <Icon name="x" />
-        <span>Follow</span>
-      </a>
-    </nav>
+    </nav>,
+    document.body,
   );
 }
 
@@ -83,14 +103,6 @@ function Icon({ name }: { name: string }) {
       <svg {...common}>
         <rect x="2" y="3" width="14" height="12" rx="3" stroke="#1c1c1c" strokeWidth="1.7" />
         <path d="M4 7h10M4 10h6" stroke="#1c1c1c" strokeWidth="1.7" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (name === "demo") {
-    return (
-      <svg {...common}>
-        <rect x="2" y="6" width="6" height="8" rx="2" stroke="#1c1c1c" strokeWidth="1.7" />
-        <rect x="10" y="4" width="6" height="10" rx="2" stroke="#1c1c1c" strokeWidth="1.7" />
       </svg>
     );
   }
@@ -117,17 +129,10 @@ function Icon({ name }: { name: string }) {
       </svg>
     );
   }
-  if (name === "tech") {
-    return (
-      <svg {...common}>
-        <path d="M4 5h10v8H4z" stroke="#1c1c1c" strokeWidth="1.7" />
-        <path d="M6 8h3M6 11h6" stroke="#1c1c1c" strokeWidth="1.7" strokeLinecap="round" />
-      </svg>
-    );
-  }
   return (
     <svg {...common}>
-      <path d="M4 4h3.2l1.4 1.6L12.2 4H15l-4.3 5L15 14h-3.1l-1.8-2.1L8 14H5l4.1-5L4 4z" fill="#1c1c1c" />
+      <path d="M4 5h10v8H4z" stroke="#1c1c1c" strokeWidth="1.7" />
+      <path d="M6 8h3M6 11h6" stroke="#1c1c1c" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }

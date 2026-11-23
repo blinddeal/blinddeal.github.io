@@ -1,7 +1,6 @@
 import { useLayoutEffect } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Demo } from "./components/Demo";
 import { Desk } from "./components/Desk";
 import { Dock } from "./components/Dock";
 import { Hero } from "./components/Hero";
@@ -28,7 +27,7 @@ export default function App() {
         });
       });
     });
-    const hash = window.location.hash.replace("#", "");
+    const hash = window.location.hash.replace("#", "").split("?")[0];
     if (hash) {
       window.setTimeout(() => {
         document.getElementById(hash)?.scrollIntoView();
@@ -39,14 +38,11 @@ export default function App() {
 
   return (
     <>
-      <a className="skip" href="#demo">
-        Skip to try a deal
+      <a className="skip" href="#desk">
+        Skip to open a deal
       </a>
       <main className="page">
         <Hero />
-        <div data-reveal>
-          <Demo />
-        </div>
         <div data-reveal>
           <Desk />
         </div>

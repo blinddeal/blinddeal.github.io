@@ -4,7 +4,7 @@ import { Mascot } from "./Mascot";
 import { Window } from "./Window";
 
 const pitch =
-  "Negotiate without showing your hand. A deal only happens if your prices overlap — and if they don't, nobody learns anything.";
+  "Lock a hash of your price. If the ranges overlap, the deal settles at the midpoint. Settle still carries both prices in that transaction.";
 
 export function Hero() {
   const root = useRef<HTMLElement>(null);
@@ -80,8 +80,8 @@ export function Hero() {
               {line}
             </div>
             <div className="row" style={{ marginTop: 18 }} data-stagger>
-              <a className="btn sun pressable" href="#demo">
-                Try a deal
+              <a className="btn sun pressable" href="#desk">
+                Open a deal
               </a>
               <a className="btn pressable" href="#how">
                 How it works

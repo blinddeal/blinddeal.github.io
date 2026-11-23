@@ -348,21 +348,24 @@ a.btn { text-decoration: none; }
 
 .dock {
   position: fixed;
-  z-index: 20;
-  left: 0;
-  right: 0;
-  bottom: 14px;
+  z-index: 40;
+  left: 8px;
+  right: 8px;
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
   width: max-content;
-  max-width: calc(100% - 20px);
+  max-width: calc(100% - 16px);
   margin: 0 auto;
   display: flex;
-  gap: 2px;
-  padding: 6px;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 4px;
   background: var(--sheet);
   border: 2px solid var(--ink);
   border-radius: 999px;
   box-shadow: 3px 3px 0 var(--ink);
-  overflow-x: auto;
+  overflow: visible;
+  transform: none;
 }
 
 .dock-pill {
@@ -370,9 +373,9 @@ a.btn { text-decoration: none; }
   top: 0;
   left: 0;
   z-index: 0;
-  width: 0;
-  height: 0;
-  border-radius: 999px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   background: var(--sun);
   pointer-events: none;
 }
@@ -383,35 +386,55 @@ a.btn { text-decoration: none; }
   appearance: none;
   text-decoration: none;
   color: inherit;
-  flex: 0 0 64px;
-  width: 64px;
-  min-width: 64px;
-  height: 58px;
-  min-height: 58px;
+  flex: 0 0 52px;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  min-height: 52px;
   border: 0;
   background: transparent;
-  border-radius: 999px;
+  border-radius: 50%;
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 2px;
-  padding: 6px 4px 5px;
+  gap: 1px;
+  padding: 4px 2px 3px;
   transform: none;
   transition: background 120ms ease, transform 120ms ease;
 }
 
 .dock a span, .dock button span {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-.dock a:hover, .dock button:hover {
+.dock a:hover:not([aria-current="true"]),
+.dock button:hover:not([aria-current="true"]) {
   background: rgba(28, 28, 28, 0.06);
 }
 
 .dock a:active, .dock button:active, body[data-shot="pressed"] .dock .pressable {
   transform: translateY(1px);
+}
+
+@media (min-width: 600px) {
+  .dock {
+    padding: 6px;
+    bottom: 14px;
+  }
+  .dock a, .dock button {
+    flex-basis: 64px;
+    width: 64px;
+    min-width: 64px;
+    height: 58px;
+    min-height: 58px;
+    padding: 6px 4px 5px;
+    gap: 2px;
+  }
+  .dock a span, .dock button span {
+    font-size: 10px;
+  }
 }
 
 @media (max-width: 799px) {
@@ -433,4 +456,30 @@ a.btn { text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .btn, .dock a, .dock button { transition: none; }
+}
+
+.area {
+  width: 100%;
+  min-height: 88px;
+  border-radius: 18px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  padding: 12px 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.wallet-list { display: grid; gap: 8px; }
+
+.sig-row { word-break: break-all; }
+
+select.num {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
 }

@@ -2,7 +2,7 @@
 
 You lock a secret price. So does the other side. If the ranges overlap, the deal settles at the midpoint. If they don't, you both get refunded and nobody sees a number.
 
-Use it at [blinddeal.github.io](https://blinddeal.github.io). The code is in [github.com/blinddeal/blinddeal.github.io](https://github.com/blinddeal/blinddeal.github.io).
+Use it at [blinddeal.github.io](https://blinddeal.github.io). Connect a Solana wallet on devnet to open a deal. The program is not deployed to devnet yet, so a lock cannot be sent until that lands. The code is in [github.com/blinddeal/blinddeal.github.io](https://github.com/blinddeal/blinddeal.github.io).
 
 ## How a deal works
 
