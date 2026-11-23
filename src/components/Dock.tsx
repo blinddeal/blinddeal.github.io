@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import gsap from "gsap";
+import { Observer } from "gsap/Observer";
+
+gsap.registerPlugin(Observer);
 
 const items = [
   { id: "hero", label: "Home" },
@@ -10,16 +13,94 @@ const items = [
   { id: "tech", label: "Tech" },
 ];
 
-const COLLAPSE_AFTER = 18;
+const COLLAPSE_AFTER = 14;
 const EXPAND_AFTER = 12;
 const TOP_EDGE = 32;
 const BOTTOM_EDGE = 64;
-const MORPH = 0.46;
-const EASE = "power3.inOut";
+const MORPH = 0.42;
+const EASE = "power2.inOut";
 const INK = "#1c1c1c";
 
 function reducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function isRootScroller(node: EventTarget | null) {
+  return (
+    node === window ||
+    node === document ||
+    node === document.documentElement ||
+    node === document.body ||
+    node === document.scrollingElement
+  );
+}
+
+function rootScrollY() {
+  const se = document.scrollingElement;
+  const page = document.querySelector("main.page") || document.getElementById("root") || document.body;
+  const fromBox = page instanceof HTMLElement ? Math.round(-page.getBoundingClientRect().top) : 0;
+  return Math.max(
+    window.scrollY || 0,
+    window.pageYOffset || 0,
+    document.documentElement.scrollTop || 0,
+    document.body.scrollTop || 0,
+    se ? se.scrollTop : 0,
+    fromBox,
+    0,
+  );
+}
+
+function rootScrollMax() {
+  const se = document.scrollingElement || document.documentElement;
+  const view = window.innerHeight || document.documentElement.clientHeight || 0;
+  const height = Math.max(
+    se.scrollHeight,
+    document.documentElement.scrollHeight,
+    document.body.scrollHeight,
+  );
+  return Math.max(0, height - view);
+}
+
+function isScrollable(el: Element) {
+  const style = window.getComputedStyle(el);
+  const overflowY = style.overflowY;
+  if (overflowY !== "auto" && overflowY !== "scroll" && overflowY !== "overlay") return false;
+  return el.scrollHeight > el.clientHeight + 1;
+}
+
+function findScrollers() {
+  const list: Array<Window | Element> = [window];
+  const seen = new Set<EventTarget>([window, document.documentElement, document.body]);
+  const add = (node: Element | null | undefined) => {
+    if (!node || seen.has(node)) return;
+    seen.add(node);
+    list.push(node);
+  };
+  add(document.scrollingElement);
+  add(document.querySelector("main"));
+  add(document.getElementById("root"));
+  for (const el of document.querySelectorAll("body *")) {
+    if (isScrollable(el)) add(el);
+  }
+  return list;
+}
+
+function readScroll(scrollers: Array<Window | Element>) {
+  let best = { node: window as Window | Element, y: rootScrollY(), max: rootScrollMax() };
+  for (const node of scrollers) {
+    if (isRootScroller(node)) continue;
+    const el = node as Element;
+    const y = el.scrollTop || 0;
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (max > best.max || (max === best.max && y > best.y)) {
+      best = { node, y, max };
+    }
+  }
+  if (best.node === window) {
+    best.y = rootScrollY();
+    best.max = Math.max(best.max, rootScrollMax());
+  }
+  return best;
 }
 
 function metrics() {
@@ -113,6 +194,7 @@ export function Dock() {
   const placed = useRef(false);
   const morphing = useRef<gsap.core.Timeline | null>(null);
   const lastY = useRef(0);
+  const lastRealY = useRef(0);
   const accum = useRef(0);
 
   const placePill = (animate: boolean) => {
@@ -121,7 +203,6 @@ export function Dock() {
     const active = dock?.querySelector<HTMLElement>("[aria-current='true']");
     if (!pill || !active) return;
     const spot = pillSpot(active, foldedRef.current);
-    if (!spot) return;
     if (!placed.current || reducedMotion() || !animate) {
       gsap.set(pill, { ...spot, ...tweenBase });
       placed.current = true;
@@ -256,6 +337,10 @@ export function Dock() {
   };
 
   useLayoutEffect(() => {
+    if (morphing.current?.isActive()) {
+      placePill(false);
+      return;
+    }
     applyLayout(foldedRef.current, false);
     placePill(false);
   }, [current]);
@@ -270,13 +355,13 @@ export function Dock() {
   }, []);
 
   useEffect(() => {
-    lastY.current = window.scrollY;
-    const onScroll = () => {
-      const y = window.scrollY;
-      const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      const dy = y - lastY.current;
-      lastY.current = y;
-      if (y <= TOP_EDGE || (max > 0 && y >= max - BOTTOM_EDGE)) {
+    let scrollers = findScrollers();
+    const primary = () => readScroll(scrollers);
+    lastY.current = primary().y;
+    lastRealY.current = lastY.current;
+
+    const applyDelta = (dy: number, y: number, max: number, fromInput = false) => {
+      if (!fromInput && (y <= TOP_EDGE || (max > 0 && y >= max - BOTTOM_EDGE))) {
         accum.current = 0;
         setFoldedState(false);
         return;
@@ -296,8 +381,70 @@ export function Dock() {
         }
       }
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+
+    const fromPosition = () => {
+      const state = primary();
+      const dy = state.y - lastRealY.current;
+      lastRealY.current = state.y;
+      lastY.current = state.y;
+      applyDelta(dy, state.y, state.max);
+    };
+
+    type Bound = { node: EventTarget; ev: string };
+    const bound: Bound[] = [];
+    const bind = () => {
+      for (const item of bound) {
+        item.node.removeEventListener(item.ev, fromPosition as EventListener);
+      }
+      bound.length = 0;
+      scrollers = findScrollers();
+      const add = (node: EventTarget | null | undefined, ev = "scroll") => {
+        if (!node) return;
+        node.addEventListener(ev, fromPosition as EventListener, { passive: true, capture: true });
+        bound.push({ node, ev });
+      };
+      add(window);
+      add(document);
+      add(document.documentElement);
+      add(document.body);
+      for (const node of scrollers) add(node);
+      add(window.visualViewport ?? undefined, "scroll");
+      add(window.visualViewport ?? undefined, "resize");
+      lastY.current = primary().y;
+      lastRealY.current = lastY.current;
+    };
+    bind();
+    window.addEventListener("resize", bind);
+
+    const observer = Observer.create({
+      type: "wheel,touch,scroll",
+      tolerance: 2,
+      preventDefault: false,
+      onChangeY(self) {
+        const state = primary();
+        if (state.y !== lastRealY.current) {
+          fromPosition();
+          return;
+        }
+        const ev = self.event as Event | undefined;
+        const kind = ev?.type || "";
+        if (kind === "wheel") {
+          applyDelta(self.deltaY, state.y, state.max);
+          return;
+        }
+        if (kind.includes("touch") || kind.includes("pointer")) {
+          applyDelta(-self.deltaY, state.y, state.max, true);
+        }
+      },
+    });
+
+    return () => {
+      observer.kill();
+      window.removeEventListener("resize", bind);
+      for (const item of bound) {
+        item.node.removeEventListener(item.ev, fromPosition as EventListener);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -323,44 +470,48 @@ export function Dock() {
       setCurrent((prev) => (prev === best ? prev : best));
     };
     syncCurrent();
-    window.addEventListener("scroll", syncCurrent, { passive: true });
+    const evs: Array<[EventTarget, string]> = [
+      [window, "scroll"],
+      [document, "scroll"],
+      [document.documentElement, "scroll"],
+      [document.body, "scroll"],
+    ];
+    if (window.visualViewport) evs.push([window.visualViewport, "scroll"], [window.visualViewport, "resize"]);
+    for (const [node, ev] of evs) node.addEventListener(ev, syncCurrent, { passive: true, capture: true });
     window.addEventListener("resize", syncCurrent);
     return () => {
-      window.removeEventListener("scroll", syncCurrent);
+      for (const [node, ev] of evs) node.removeEventListener(ev, syncCurrent);
       window.removeEventListener("resize", syncCurrent);
     };
   }, []);
 
   return createPortal(
-    <>
-      <div className="dock-veil" aria-hidden="true" />
-      <nav
-        className={folded ? "dock is-compact" : "dock"}
-        aria-label="Sections"
-        data-compact={folded ? "true" : "false"}
-        ref={dockRef}
-        onClick={() => {
-          if (foldedRef.current) setFoldedState(false);
-        }}
-      >
-        <span className="dock-pill" ref={pillRef} aria-hidden="true" />
-        {items.map((item) => (
-          <a
-            key={item.id}
-            href={`#${item.id}`}
-            aria-current={current === item.id}
-            className={item.id === "hero" ? "pressable" : undefined}
-            onClick={() => {
-              if (foldedRef.current) setFoldedState(false);
-              setCurrent(item.id);
-            }}
-          >
-            <Icon name={item.id} />
-            <span>{item.label}</span>
-          </a>
-        ))}
-      </nav>
-    </>,
+    <nav
+      className={folded ? "dock is-compact" : "dock"}
+      aria-label="Sections"
+      data-compact={folded ? "true" : "false"}
+      ref={dockRef}
+      onClick={() => {
+        if (foldedRef.current) setFoldedState(false);
+      }}
+    >
+      <span className="dock-pill" ref={pillRef} aria-hidden="true" />
+      {items.map((item) => (
+        <a
+          key={item.id}
+          href={`#${item.id}`}
+          aria-current={current === item.id}
+          className={item.id === "hero" ? "pressable" : undefined}
+          onClick={() => {
+            if (foldedRef.current) setFoldedState(false);
+            setCurrent(item.id);
+          }}
+        >
+          <Icon name={item.id} />
+          <span>{item.label}</span>
+        </a>
+      ))}
+    </nav>,
     document.body,
   );
 }
