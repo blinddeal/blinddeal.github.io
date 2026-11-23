@@ -57,7 +57,7 @@ button { cursor: pointer; }
 .page {
   width: min(1040px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 28px 0 132px;
+  padding: 28px 0 180px;
   display: grid;
   gap: 72px;
 }
@@ -346,11 +346,24 @@ a.btn { text-decoration: none; }
 
 .mascot { display: block; overflow: visible; }
 
+.dock-veil {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 39;
+  height: 180px;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(28, 28, 28, 0.16) 0.7px, transparent 0.75px),
+    linear-gradient(to top, var(--paper) 0%, var(--paper) 58%, rgba(231, 225, 212, 0) 100%);
+  background-size: 22px 22px, 100% 100%;
+  background-color: transparent;
+}
+
 .dock {
   position: fixed;
-  z-index: 40;
-  left: 8px;
-  right: 8px;
+  z-index: 50;
+  left: 0;
+  right: 0;
   bottom: max(12px, env(safe-area-inset-bottom, 0px));
   width: max-content;
   max-width: calc(100% - 16px);
@@ -365,7 +378,9 @@ a.btn { text-decoration: none; }
   border-radius: 999px;
   box-shadow: 3px 3px 0 var(--ink);
   overflow: visible;
+  box-sizing: border-box;
   transform: none;
+  isolation: isolate;
 }
 
 .dock-pill {
@@ -386,7 +401,7 @@ a.btn { text-decoration: none; }
   appearance: none;
   text-decoration: none;
   color: inherit;
-  flex: 0 0 52px;
+  flex: 0 0 auto;
   width: 52px;
   min-width: 52px;
   height: 52px;
@@ -399,14 +414,20 @@ a.btn { text-decoration: none; }
   align-content: center;
   gap: 1px;
   padding: 4px 2px 3px;
+  overflow: hidden;
+  white-space: nowrap;
   transform: none;
-  transition: background 120ms ease, transform 120ms ease;
+  transition: background 120ms ease;
 }
 
 .dock a span, .dock button span {
   font-size: 9px;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.dock.is-compact {
+  cursor: pointer;
 }
 
 .dock a:hover:not([aria-current="true"]),
@@ -424,7 +445,6 @@ a.btn { text-decoration: none; }
     bottom: 14px;
   }
   .dock a, .dock button {
-    flex-basis: 64px;
     width: 64px;
     min-width: 64px;
     height: 58px;
