@@ -16,6 +16,7 @@ const TOP_EDGE = 32;
 const BOTTOM_EDGE = 64;
 const MORPH = 0.46;
 const EASE = "power3.inOut";
+const INK = "#1c1c1c";
 
 function reducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -23,35 +24,84 @@ function reducedMotion() {
 
 function metrics() {
   const narrow = window.matchMedia("(max-width: 599px)").matches;
-  const itemW = narrow ? 52 : 64;
-  const itemH = narrow ? 52 : 58;
-  const pad = narrow ? 4 : 6;
-  const compactPad = narrow ? 3 : 4;
-  const compactItemH = narrow ? 48 : 52;
-  const border = 2;
   const count = items.length;
+  if (narrow) {
+    return {
+      pad: 4,
+      itemW: 52,
+      itemH: 52,
+      icon: 18,
+      font: 9,
+      labelGap: 1,
+      itemPadX: 2,
+      itemPadY: 4,
+      border: 2,
+      shadow: 3,
+      gap: 0,
+      compactPad: 3,
+      compactItemW: 42,
+      compactItemH: 36,
+      compactIcon: 16,
+      compactFont: 8,
+      compactLabelGap: 0,
+      compactItemPadX: 2,
+      compactItemPadY: 3,
+      compactBorder: 1,
+      compactShadow: 2,
+      compactGap: 0,
+      fullW: 4 * 2 + 52 * count + 2 * 2,
+      fullH: 4 * 2 + 52 + 2 * 2,
+      compactW: 3 * 2 + 42 * count + 1 * 2,
+      compactH: 3 * 2 + 36 + 1 * 2,
+    };
+  }
   return {
-    itemW,
-    itemH,
-    pad,
-    compactPad,
-    compactItemH,
-    fullW: pad * 2 + itemW * count + border * 2,
-    fullH: pad * 2 + itemH + border * 2,
-    compactW: compactPad * 2 + itemW + border * 2,
-    compactH: compactPad * 2 + compactItemH + border * 2,
+    pad: 6,
+    itemW: 64,
+    itemH: 58,
+    icon: 18,
+    font: 10,
+    labelGap: 2,
+    itemPadX: 4,
+    itemPadY: 6,
+    border: 2,
+    shadow: 3,
+    gap: 0,
+    compactPad: 3,
+    compactItemW: 52,
+    compactItemH: 40,
+    compactIcon: 16,
+    compactFont: 9,
+    compactLabelGap: 1,
+    compactItemPadX: 3,
+    compactItemPadY: 3,
+    compactBorder: 1,
+    compactShadow: 2,
+    compactGap: 0,
+    fullW: 6 * 2 + 64 * count + 2 * 2,
+    fullH: 6 * 2 + 58 + 2 * 2,
+    compactW: 3 * 2 + 52 * count + 1 * 2,
+    compactH: 3 * 2 + 40 + 1 * 2,
   };
 }
 
-function pillSpot(active: HTMLElement) {
-  const size = Math.round(Math.min(active.offsetWidth, active.offsetHeight) - 8);
-  if (size <= 0) return null;
+function pillSpot(active: HTMLElement, compact: boolean) {
+  const inset = compact ? 6 : 8;
+  const size = Math.max(2, Math.round(Math.min(active.offsetWidth, active.offsetHeight) - inset));
   return {
-    x: active.offsetLeft + (active.offsetWidth - size) / 2,
-    y: active.offsetTop + (active.offsetHeight - size) / 2,
+    left: Math.round(active.offsetLeft + (active.offsetWidth - size) / 2),
+    top: Math.round(active.offsetTop + (active.offsetHeight - size) / 2),
     width: size,
     height: size,
+    x: 0,
+    y: 0,
   };
+}
+
+const tweenBase = { force3D: false as const, overwrite: "auto" as const };
+
+function snapNumber(value: unknown) {
+  return typeof value === "number" ? Math.round(value) : value;
 }
 
 export function Dock() {
@@ -70,66 +120,131 @@ export function Dock() {
     const dock = dockRef.current;
     const active = dock?.querySelector<HTMLElement>("[aria-current='true']");
     if (!pill || !active) return;
-    const spot = pillSpot(active);
+    const spot = pillSpot(active, foldedRef.current);
     if (!spot) return;
     if (!placed.current || reducedMotion() || !animate) {
-      gsap.set(pill, spot);
+      gsap.set(pill, { ...spot, ...tweenBase });
       placed.current = true;
       return;
     }
-    gsap.to(pill, { ...spot, duration: 0.32, ease: "power2.out", overwrite: "auto" });
+    gsap.to(pill, { ...spot, duration: 0.32, ease: "power2.out", ...tweenBase });
+  };
+
+  const snapLayout = () => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const sizeKeys = [
+      "width",
+      "height",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "borderWidth",
+      "gap",
+      "fontSize",
+    ] as const;
+    const nodes = [dock, ...dock.querySelectorAll<HTMLElement>(":scope > a, :scope > a span, :scope > a svg")];
+    for (const node of nodes) {
+      const next: gsap.TweenVars = { force3D: false };
+      for (const key of sizeKeys) {
+        const value = snapNumber(gsap.getProperty(node, key));
+        if (typeof value === "number" && Number.isFinite(value)) next[key] = value;
+      }
+      gsap.set(node, next);
+      gsap.set(node, { clearProps: "transform,x,y,z,top,scale,rotation" });
+    }
+    const pill = pillRef.current;
+    if (pill) {
+      const left = snapNumber(gsap.getProperty(pill, "left"));
+      const top = snapNumber(gsap.getProperty(pill, "top"));
+      const width = snapNumber(gsap.getProperty(pill, "width"));
+      const height = snapNumber(gsap.getProperty(pill, "height"));
+      gsap.set(pill, {
+        force3D: false,
+        left: typeof left === "number" ? left : 0,
+        top: typeof top === "number" ? top : 0,
+        width: typeof width === "number" ? width : 0,
+        height: typeof height === "number" ? height : 0,
+        clearProps: "transform,x,y,z,scale,rotation",
+      });
+    }
+    placePill(false);
   };
 
   const applyLayout = (nextFolded: boolean, animate: boolean) => {
     const dock = dockRef.current;
     if (!dock) return;
     const links = Array.from(dock.querySelectorAll<HTMLElement>(":scope > a"));
-    const active = links.find((link) => link.getAttribute("aria-current") === "true") ?? links[0];
     const m = metrics();
     const duration = animate && !reducedMotion() ? MORPH : 0;
+    const pad = nextFolded ? m.compactPad : m.pad;
+    const itemW = nextFolded ? m.compactItemW : m.itemW;
+    const itemH = nextFolded ? m.compactItemH : m.itemH;
+    const icon = nextFolded ? m.compactIcon : m.icon;
+    const font = nextFolded ? m.compactFont : m.font;
+    const labelGap = nextFolded ? m.compactLabelGap : m.labelGap;
+    const padX = nextFolded ? m.compactItemPadX : m.itemPadX;
+    const padY = nextFolded ? m.compactItemPadY : m.itemPadY;
+    const border = nextFolded ? m.compactBorder : m.border;
+    const shadow = nextFolded ? m.compactShadow : m.shadow;
+    const gap = nextFolded ? m.compactGap : m.gap;
+    const width = nextFolded ? m.compactW : m.fullW;
+    const height = nextFolded ? m.compactH : m.fullH;
     morphing.current?.kill();
     const tl = gsap.timeline({
-      defaults: { duration, ease: EASE, overwrite: "auto" },
+      defaults: { duration, ease: EASE, ...tweenBase },
       onUpdate: () => placePill(false),
-      onComplete: () => placePill(false),
+      onComplete: () => snapLayout(),
     });
     morphing.current = tl;
     tl.to(
       dock,
       {
-        width: nextFolded ? m.compactW : m.fullW,
-        height: nextFolded ? m.compactH : m.fullH,
-        paddingTop: nextFolded ? m.compactPad : m.pad,
-        paddingRight: nextFolded ? m.compactPad : m.pad,
-        paddingBottom: nextFolded ? m.compactPad : m.pad,
-        paddingLeft: nextFolded ? m.compactPad : m.pad,
+        width,
+        height,
+        paddingTop: pad,
+        paddingRight: pad,
+        paddingBottom: pad,
+        paddingLeft: pad,
         borderRadius: 999,
+        borderWidth: border,
+        gap,
+        boxShadow: `${shadow}px ${shadow}px 0 ${INK}`,
       },
       0,
     );
     for (const link of links) {
-      const on = !nextFolded || link === active;
-      const height = nextFolded ? m.compactItemH : m.itemH;
-      const padY = nextFolded ? 3 : m.itemH === 58 ? 6 : 4;
-      const padX = nextFolded ? 2 : m.itemW === 64 ? 4 : 2;
+      const iconNode = link.querySelector<SVGElement>("svg");
+      const label = link.querySelector<HTMLElement>("span");
       tl.to(
         link,
         {
-          width: on ? m.itemW : 0,
-          minWidth: on ? m.itemW : 0,
-          maxWidth: on ? m.itemW : 0,
-          height: on ? height : height,
-          minHeight: on ? height : height,
-          paddingTop: on ? padY : 0,
-          paddingBottom: on ? padY : 0,
-          paddingLeft: on ? padX : 0,
-          paddingRight: on ? padX : 0,
-          autoAlpha: on ? 1 : 0,
+          width: itemW,
+          minWidth: itemW,
+          maxWidth: itemW,
+          height: itemH,
+          minHeight: itemH,
+          paddingTop: padY,
+          paddingBottom: padY,
+          paddingLeft: padX,
+          paddingRight: padX,
+          gap: labelGap,
+          autoAlpha: 1,
         },
         0,
       );
-      link.setAttribute("aria-hidden", on ? "false" : "true");
-      link.tabIndex = on ? 0 : -1;
+      if (iconNode) {
+        tl.to(iconNode, { width: icon, height: icon, attr: { width: icon, height: icon } }, 0);
+      }
+      if (label) {
+        tl.to(label, { fontSize: font, autoAlpha: 1 }, 0);
+      }
+      link.setAttribute("aria-hidden", "false");
+      link.tabIndex = 0;
+    }
+    if (duration === 0) {
+      snapLayout();
     }
   };
 
@@ -235,13 +350,8 @@ export function Dock() {
             href={`#${item.id}`}
             aria-current={current === item.id}
             className={item.id === "hero" ? "pressable" : undefined}
-            onClick={(event) => {
-              if (foldedRef.current) {
-                event.preventDefault();
-                event.stopPropagation();
-                setFoldedState(false);
-                return;
-              }
+            onClick={() => {
+              if (foldedRef.current) setFoldedState(false);
               setCurrent(item.id);
             }}
           >
@@ -256,7 +366,14 @@ export function Dock() {
 }
 
 function Icon({ name }: { name: string }) {
-  const common = { width: 18, height: 18, viewBox: "0 0 18 18", fill: "none", "aria-hidden": true as const };
+  const common = {
+    className: "dock-icon",
+    width: 18,
+    height: 18,
+    viewBox: "0 0 18 18",
+    fill: "none",
+    "aria-hidden": true as const,
+  };
   if (name === "hero") {
     return (
       <svg {...common}>

@@ -380,6 +380,8 @@ a.btn { text-decoration: none; }
   overflow: visible;
   box-sizing: border-box;
   transform: none;
+  will-change: auto;
+  filter: none;
   isolation: isolate;
 }
 
@@ -393,6 +395,9 @@ a.btn { text-decoration: none; }
   border-radius: 50%;
   background: var(--sun);
   pointer-events: none;
+  transform: none;
+  will-change: auto;
+  filter: none;
 }
 
 .dock a, .dock button {
@@ -413,21 +418,57 @@ a.btn { text-decoration: none; }
   justify-items: center;
   align-content: center;
   gap: 1px;
-  padding: 4px 2px 3px;
+  padding: 4px 2px;
   overflow: hidden;
   white-space: nowrap;
   transform: none;
+  will-change: auto;
+  filter: none;
   transition: background 120ms ease;
+}
+
+.dock-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  transform: none;
+  will-change: auto;
+  filter: none;
 }
 
 .dock a span, .dock button span {
   font-size: 9px;
+  line-height: 1;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
+  transform: none;
+  will-change: auto;
 }
 
 .dock.is-compact {
   cursor: pointer;
+  padding: 3px;
+  border-width: 1px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.dock.is-compact a, .dock.is-compact button {
+  width: 42px;
+  min-width: 42px;
+  max-width: 42px;
+  height: 36px;
+  min-height: 36px;
+  padding: 3px 2px;
+  gap: 0;
+}
+
+.dock.is-compact .dock-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.dock.is-compact a span, .dock.is-compact button span {
+  font-size: 8px;
 }
 
 .dock a:hover:not([aria-current="true"]),
@@ -449,11 +490,28 @@ a.btn { text-decoration: none; }
     min-width: 64px;
     height: 58px;
     min-height: 58px;
-    padding: 6px 4px 5px;
+    padding: 6px 4px;
     gap: 2px;
   }
   .dock a span, .dock button span {
     font-size: 10px;
+  }
+  .dock.is-compact {
+    padding: 3px;
+    border-width: 1px;
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+  .dock.is-compact a, .dock.is-compact button {
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+    height: 40px;
+    min-height: 40px;
+    padding: 3px;
+    gap: 1px;
+  }
+  .dock.is-compact a span, .dock.is-compact button span {
+    font-size: 9px;
   }
 }
 
