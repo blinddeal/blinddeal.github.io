@@ -45,7 +45,7 @@ export function explainError(err: unknown): string {
     if (ANCHOR[code]) return ANCHOR[code];
   }
   if (lower.includes("attempt to debit an account") || lower.includes("insufficient lamports") || lower.includes("insufficient funds")) {
-    return "The wallet does not have enough SOL or tokens for this step.";
+    return "This wallet needs a little devnet SOL for fees. Request some from the Solana faucet.";
   }
   if ((lower.includes("could not find") && lower.includes("program")) || lower.includes("invalid program id")) {
     return "The BlindDeal program is not on devnet yet, so this transaction cannot be sent.";

@@ -27,13 +27,21 @@ export default function App() {
         });
       });
     });
-    const hash = window.location.hash.replace("#", "").split("?")[0];
-    if (hash) {
-      window.setTimeout(() => {
-        document.getElementById(hash)?.scrollIntoView();
-      }, 40);
-    }
-    return () => mm.revert();
+    const goDesk = () => {
+      const hash = window.location.hash.replace("#", "").split("?")[0];
+      const fromQuery = new URLSearchParams(window.location.search).has("d");
+      if (hash === "desk" || hash.startsWith("/d/") || hash.startsWith("d/") || fromQuery) {
+        document.getElementById("desk")?.scrollIntoView();
+        return;
+      }
+      if (hash) document.getElementById(hash)?.scrollIntoView();
+    };
+    window.setTimeout(goDesk, 40);
+    window.addEventListener("hashchange", goDesk);
+    return () => {
+      window.removeEventListener("hashchange", goDesk);
+      mm.revert();
+    };
   }, []);
 
   return (

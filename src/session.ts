@@ -69,3 +69,12 @@ export function saveSlip(deal: string, slip: Slip) {
 export function storedSlipText(deal: string): string | null {
   return window.localStorage.getItem(slipKey(deal));
 }
+
+export function offerSlipKey(creator: string, id: string): string {
+  return "invite." + creator + "." + id;
+}
+
+export function copySlip(fromKey: string, toKey: string) {
+  const raw = storedSlipText(fromKey);
+  if (raw) window.localStorage.setItem(slipKey(toKey), raw);
+}
