@@ -86,3 +86,18 @@ export function Tech() {
     </section>
   );
 }
+
+export function Footer() {
+  return (
+    <footer className="site-foot">
+      <p className="foot-title">Follow the build</p>
+      <p>Your number stays yours.</p>
+      <p>
+        <a href="https://github.com/nirempathys" target="_blank" rel="noreferrer">
+          Follow @nirempathys
+        </a>
+      </p>
+      <p>Made on Solana, for the Helius Privacy Rings</p>
+    </footer>
+  );
+}

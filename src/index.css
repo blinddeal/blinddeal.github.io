@@ -57,17 +57,15 @@ button { cursor: pointer; }
 .page {
   width: min(1040px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 28px 0 180px;
+  padding: 28px 0 160px;
   display: grid;
-  gap: 72px;
+  gap: 56px;
 }
 
 #hero {
-  min-height: calc(100dvh - 28px);
-  padding-bottom: 96px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .kicker {
@@ -505,10 +503,7 @@ a.btn { text-decoration: none; }
 
 @media (max-width: 799px) {
   #hero {
-    min-height: calc(100dvh - 8px);
-    justify-content: flex-start;
     padding-top: 8px;
-    padding-bottom: 96px;
   }
   .hero-grid { display: flex; flex-direction: column; }
   .hero-mascot { order: -1; }
@@ -516,7 +511,7 @@ a.btn { text-decoration: none; }
 }
 
 @media (min-width: 800px) {
-  .page { padding-top: 56px; gap: 76px; }
+  .page { padding-top: 56px; gap: 64px; }
   .wbody { padding: 28px; }
   .hero-grid { grid-template-columns: 1.4fr 0.7fr; align-items: center; }
   .party-grid, .split, .form-grid { grid-template-columns: 1fr 1fr; }
@@ -527,6 +522,30 @@ a.btn { text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .btn, .dock a, .dock button { transition: none; }
+}
+
+.site-foot {
+  display: grid;
+  gap: 6px;
+  padding: 4px 6px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--mute);
+}
+
+.site-foot .foot-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.site-foot p { margin: 0; }
+
+.site-foot a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .area {

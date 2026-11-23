@@ -4,7 +4,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Desk } from "./components/Desk";
 import { Dock } from "./components/Dock";
 import { Hero } from "./components/Hero";
-import { How, Tech, Why } from "./components/Story";
+import { Footer, How, Tech, Why } from "./components/Story";
 import { currentShot } from "./shot";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -55,6 +55,7 @@ export default function App() {
         <div data-reveal>
           <Tech />
         </div>
+        <Footer />
       </main>
       <Dock />
     </>

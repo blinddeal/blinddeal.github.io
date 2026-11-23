@@ -11,6 +11,7 @@ const items = [
   { id: "how", label: "How" },
   { id: "why", label: "Uses" },
   { id: "tech", label: "Tech" },
+  { id: "repo", label: "Repo", href: "https://github.com/blinddeal/blinddeal.github.io" },
 ];
 
 const COLLAPSE_AFTER = 14;
@@ -453,6 +454,7 @@ export function Dock() {
       let best = items[0].id;
       let bestDist = Number.POSITIVE_INFINITY;
       for (const item of items) {
+        if ("href" in item && item.href) continue;
         const node = document.getElementById(item.id);
         if (!node) continue;
         const box = node.getBoundingClientRect();
@@ -496,21 +498,26 @@ export function Dock() {
       }}
     >
       <span className="dock-pill" ref={pillRef} aria-hidden="true" />
-      {items.map((item) => (
-        <a
-          key={item.id}
-          href={`#${item.id}`}
-          aria-current={current === item.id}
-          className={item.id === "hero" ? "pressable" : undefined}
-          onClick={() => {
-            if (foldedRef.current) setFoldedState(false);
-            setCurrent(item.id);
-          }}
-        >
-          <Icon name={item.id} />
-          <span>{item.label}</span>
-        </a>
-      ))}
+      {items.map((item) => {
+        const external = "href" in item && Boolean(item.href);
+        return (
+          <a
+            key={item.id}
+            href={external ? item.href : `#${item.id}`}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noreferrer" : undefined}
+            aria-current={!external && current === item.id ? true : undefined}
+            className={item.id === "hero" ? "pressable" : undefined}
+            onClick={() => {
+              if (foldedRef.current) setFoldedState(false);
+              if (!external) setCurrent(item.id);
+            }}
+          >
+            <Icon name={item.id} />
+            <span>{item.label}</span>
+          </a>
+        );
+      })}
     </nav>,
     document.body,
   );
@@ -553,6 +560,17 @@ function Icon({ name }: { name: string }) {
     return (
       <svg {...common}>
         <path d="M3 13V5h5l1 2h6v6H3z" stroke="#1c1c1c" strokeWidth="1.7" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (name === "repo") {
+    return (
+      <svg {...common}>
+        <path d="M6 3v12" stroke="#1c1c1c" strokeWidth="1.7" strokeLinecap="round" />
+        <circle cx="6" cy="5" r="2.1" stroke="#1c1c1c" strokeWidth="1.7" />
+        <circle cx="6" cy="13" r="2.1" stroke="#1c1c1c" strokeWidth="1.7" />
+        <circle cx="12.5" cy="9" r="2.1" stroke="#1c1c1c" strokeWidth="1.7" />
+        <path d="M8 13h2.2A2.3 2.3 0 0 0 12.5 10.7" stroke="#1c1c1c" strokeWidth="1.7" strokeLinecap="round" />
       </svg>
     );
   }
