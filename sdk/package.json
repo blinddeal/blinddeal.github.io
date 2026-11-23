@@ -1,0 +1,57 @@
+{
+  "name": "blinddeal-sdk",
+  "version": "0.1.0",
+  "description": "Public TypeScript SDK for the BlindDeal Solana escrow. Lock a secret price, settle at the midpoint, or refund.",
+  "license": "MIT",
+  "author": "BlindDeal",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "solana",
+    "blinddeal",
+    "escrow",
+    "otc",
+    "anchor"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "npm run build && node --test test/*.test.mjs test/*.test.cjs && tsc -p test/tsconfig.json",
+    "prepublishOnly": "npm test"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "buffer": "^6.0.3",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "homepage": "https://blinddeal.github.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blinddeal/blinddeal.github.io",
+    "directory": "sdk"
+  }
+}

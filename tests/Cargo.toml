@@ -1,0 +1,18 @@
+[package]
+name = "blind-deal-tests"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+
+[dependencies]
+blind-deal = { path = "../programs/blind-deal", features = ["no-entrypoint"] }
+litesvm = "0.18.2"
+solana-account = "4"
+solana-address = "2"
+solana-clock = "3"
+solana-instruction = "3"
+solana-keypair = "3"
+solana-message = "4"
+solana-signer = "3"
+solana-transaction = "4"
+anchor-lang = "1.2.2"
