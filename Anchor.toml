@@ -7,10 +7,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-blind_deal = "3EmcLYRjwELFoFwWfKgSJfycz1d75xXAXB3ChRHKgzYC"
+blind_deal = "26gAVfqVbETimiSZSnp8ENUV6JkWzWbpoyQ4oh5YxRva"
 
 [programs.devnet]
-blind_deal = "3EmcLYRjwELFoFwWfKgSJfycz1d75xXAXB3ChRHKgzYC"
+blind_deal = "26gAVfqVbETimiSZSnp8ENUV6JkWzWbpoyQ4oh5YxRva"
 
 [provider]
 cluster = "localnet"

@@ -23,7 +23,7 @@ Then open [http://127.0.0.1:47331/](http://127.0.0.1:47331/).
 
 ## Program
 
-Anchor 1.2.2. Program id `3EmcLYRjwELFoFwWfKgSJfycz1d75xXAXB3ChRHKgzYC`.
+Anchor 1.2.2. Program id `26gAVfqVbETimiSZSnp8ENUV6JkWzWbpoyQ4oh5YxRva`.
 
 ```bash
 export PATH="$HOME/.local/bin:$HOME/.local/share/solana/install/active_release/bin:$PATH"

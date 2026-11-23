@@ -10,7 +10,7 @@ pub use instructions::*;
 pub use rings::*;
 pub use state::*;
 
-declare_id!("3EmcLYRjwELFoFwWfKgSJfycz1d75xXAXB3ChRHKgzYC");
+declare_id!("26gAVfqVbETimiSZSnp8ENUV6JkWzWbpoyQ4oh5YxRva");
 
 pub const DEAL_SEED: &[u8] = b"deal";
 pub const PAYMENT_SEED: &[u8] = b"payment";

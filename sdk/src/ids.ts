@@ -2,7 +2,7 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export const BLIND_DEAL_PROGRAM_ID = new PublicKey(
-  "3EmcLYRjwELFoFwWfKgSJfycz1d75xXAXB3ChRHKgzYC",
+  "26gAVfqVbETimiSZSnp8ENUV6JkWzWbpoyQ4oh5YxRva",
 );
 
 export const TOKEN_PROGRAM = TOKEN_PROGRAM_ID;

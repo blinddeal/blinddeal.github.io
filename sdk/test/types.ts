@@ -8,7 +8,7 @@ import {
   keypairWallet,
 } from "../dist/index.js";
 
-const config: BlindDealConfig = { cluster: "devnet", programId: "3EmcLYRjwELFoFwWfKgSJfycz1d75xXAXB3ChRHKgzYC" };
+const config: BlindDealConfig = { cluster: "devnet", programId: "26gAVfqVbETimiSZSnp8ENUV6JkWzWbpoyQ4oh5YxRva" };
 const wallet: DealWallet = keypairWallet(Keypair.generate());
 const hash: Uint8Array = commitment(1n, new Uint8Array(32));
 const url: string = clusterUrl(config.cluster);

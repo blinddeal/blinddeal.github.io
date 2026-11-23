@@ -27,3 +27,4 @@ id.json
 !.vscode/extensions.json
 .idea
 *.log
+*-keypair.json
