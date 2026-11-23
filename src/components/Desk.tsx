@@ -24,17 +24,26 @@ import {
 } from "blinddeal-sdk";
 import {
   CONFIG,
+  DEFAULT_EXPIRY_SECONDS,
   DEVNET_USDC,
+  DEVNET_USDT,
   FAUCET_URL,
+  HIDDEN_ASSET_AMOUNT,
+  HIDDEN_ASSET_MINT,
   WRAPPED_SOL,
   appCluster,
   connection,
   explorerAddress,
   explorerTx,
+  missingPaymentHelp,
   mintDecimals,
+  paymentChoiceFor,
+  paymentMintFor,
   programIsLive,
   solLamports,
+  tokenBalance,
   tokenLabel,
+  type PaymentChoice,
 } from "../cluster";
 import { explainError } from "../errors";
 import { findDealById } from "../onchain";
@@ -52,7 +61,6 @@ import {
   updateMyDeal,
   upsertMyDeal,
   writeRoute,
-  bytesToHex,
   type Offer,
   type Route,
   type StoredDeal,
@@ -88,14 +96,6 @@ import {
 import { Mascot, type Mood } from "./Mascot";
 import { QrCode } from "./QrCode";
 import { Window } from "./Window";
-
-const EXPIRY_OPTIONS = [
-  { label: "1 hour", seconds: 60 * 60 },
-  { label: "24 hours", seconds: 60 * 60 * 24 },
-  { label: "7 days", seconds: 60 * 60 * 24 * 7 },
-  { label: "14 days", seconds: 60 * 60 * 24 * 14 },
-  { label: "30 days", seconds: 60 * 60 * 24 * 30 },
-];
 
 type Session = {
   name: string;
@@ -142,9 +142,23 @@ function roleOf(you: PublicKey | undefined, buyer: PublicKey, seller: PublicKey)
 
 function knownDecimals(mint: PublicKey): number | null {
   if (mint.equals(WRAPPED_SOL)) return 9;
-  if (mint.equals(DEVNET_USDC)) return 6;
+  if (mint.equals(DEVNET_USDC) || mint.equals(DEVNET_USDT)) return 6;
   return null;
 }
+
+function secretHelper(acting: "buyer" | "seller"): string {
+  return acting === "buyer"
+    ? "Only you see this. The seller never will."
+    : "Only you see this. The buyer never will.";
+}
+
+function counterpartyPrompt(offer: Offer, who: string): string {
+  const item = offer.label.trim() || "something";
+  if (offer.role === "seller") return who + " is selling " + item + ". Enter the most you'd pay.";
+  return who + " wants to buy " + item + ". Enter the lowest price you'd accept.";
+}
+
+type PaymentHelp = { token: string; text: string; href?: string; linkLabel?: string };
 
 export function Desk() {
   const shot = currentShot();
@@ -162,19 +176,18 @@ export function Desk() {
   const [offer, setOffer] = useState<Offer | null>(null);
   const [ref, setRef] = useState<DealRef | null>(null);
   const [role, setRole] = useState<"buyer" | "seller">("seller");
-  const [paymentChoice, setPaymentChoice] = useState<"sol" | "usdc" | "custom">("sol");
-  const [paymentMint, setPaymentMint] = useState(WRAPPED_SOL.toBase58());
-  const [assetMint, setAssetMint] = useState("");
-  const [assetAmount, setAssetAmount] = useState("1");
+  const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>("usdc");
+  const [paymentMint, setPaymentMint] = useState(DEVNET_USDC.toBase58());
   const [itemLabel, setItemLabel] = useState("");
   const [secret, setSecret] = useState("");
-  const [expiry, setExpiry] = useState(String(60 * 60 * 24));
+  const [expiry] = useState(String(DEFAULT_EXPIRY_SECONDS));
   const [theirSlip, setTheirSlip] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
-  const [payDecimals, setPayDecimals] = useState(9);
+  const [payDecimals, setPayDecimals] = useState(6);
   const [myDeals, setMyDeals] = useState<StoredDeal[]>(() => (typeof window === "undefined" ? [] : loadMyDeals()));
   const [lowSol, setLowSol] = useState(false);
   const [shared, setShared] = useState(false);
+  const [paymentHelp, setPaymentHelp] = useState<PaymentHelp | null>(null);
 
   function applyRoute(route: Route) {
     if (route.kind === "invite") {
@@ -183,10 +196,8 @@ export function Desk() {
       setDeal(null);
       setRole(route.offer.role);
       setPaymentMint(route.offer.paymentMint);
-      setAssetMint(route.offer.assetMint);
-      setAssetAmount(route.offer.assetAmount);
+      setPaymentChoice(paymentChoiceFor(route.offer.paymentMint) ?? "usdc");
       setItemLabel(route.offer.label);
-      setExpiry(String(route.offer.expirySeconds));
       if (route.reveal) setTheirSlip(route.reveal);
       return;
     }
@@ -460,7 +471,25 @@ export function Desk() {
                 : "idle";
   const needsSolHelp =
     lowSol ||
-    Boolean(notice && /devnet SOL for fees|enough SOL or tokens|insufficient/i.test(notice));
+    Boolean(notice && /devnet SOL for fees/.test(notice));
+  const actingBuyer =
+    yourRole === "buyer" ||
+    Boolean(offer && !deal && ((isCreator && offer.role === "buyer") || (!isCreator && offer.role === "seller")));
+
+  useEffect(() => {
+    if (!session || !actingBuyer) return;
+    const mint = deal?.paymentMint ?? (offer ? new PublicKey(offer.paymentMint) : paymentMintFor(paymentChoice));
+    if (mint.equals(WRAPPED_SOL)) return;
+    let cancelled = false;
+    void tokenBalance(conn, session.publicKey, mint).then((have) => {
+      if (cancelled) return;
+      if (have === 0n) setPaymentHelp(missingPaymentHelp(mint));
+      else setPaymentHelp(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, deal, offer, actingBuyer, paymentChoice, conn]);
 
   async function connect(item: InstalledWallet) {
     setNotice(null);
@@ -582,10 +611,26 @@ export function Desk() {
     return current;
   }
 
-  function choosePayment(choice: "sol" | "usdc" | "custom") {
+  function choosePayment(choice: PaymentChoice) {
     setPaymentChoice(choice);
-    if (choice === "sol") setPaymentMint(WRAPPED_SOL.toBase58());
-    if (choice === "usdc") setPaymentMint(DEVNET_USDC.toBase58());
+    setPaymentMint(paymentMintFor(choice).toBase58());
+    setPaymentHelp(null);
+  }
+
+  async function assertPayment(owner: PublicKey, mint: PublicKey, amount: bigint) {
+    if (mint.equals(WRAPPED_SOL)) return;
+    const have = await tokenBalance(conn, owner, mint);
+    if (have < amount) {
+      const help = missingPaymentHelp(mint);
+      setPaymentHelp(help);
+      throw new Error(help.text);
+    }
+    setPaymentHelp(null);
+  }
+
+  async function prepareAssetLock(owner: PublicKey, mint: PublicKey, amount: bigint): Promise<TransactionInstruction[]> {
+    if (mint.equals(WRAPPED_SOL)) return wrapSolInstructions(conn, owner, amount);
+    return ensureAtas(owner, [mint]);
   }
 
   async function onCreate(event: FormEvent) {
@@ -595,24 +640,20 @@ export function Desk() {
     setSignature(null);
     try {
       const current = requireWallet();
-      const payment = pubkeyOrNull(paymentMint);
-      const asset = pubkeyOrNull(assetMint);
-      if (!payment || !asset) throw new Error("Enter a valid payment token and the token being sold.");
+      const payment = paymentMintFor(paymentChoice);
       const paymentDecimals = await decimalsFor(payment);
-      const assetDecimals = await decimalsFor(asset);
       const price = tokenAmount(secret, paymentDecimals);
-      const assets = tokenAmount(assetAmount, assetDecimals);
-      if (price <= 0n || assets <= 0n) throw new Error("Amounts must be greater than zero.");
+      if (price <= 0n) throw new Error("Enter a price greater than zero.");
       const id = BigInt(Date.now());
       const nextOffer: Offer = {
         version: 1,
         creator: current.publicKey.toBase58(),
         role,
         paymentMint: payment.toBase58(),
-        assetMint: asset.toBase58(),
-        assetAmount: assetAmount.trim(),
+        assetMint: HIDDEN_ASSET_MINT.toBase58(),
+        assetAmount: HIDDEN_ASSET_AMOUNT,
         label: itemLabel.trim().slice(0, 80),
-        expirySeconds: Number(expiry) || 60 * 60 * 24,
+        expirySeconds: Number(expiry) || DEFAULT_EXPIRY_SECONDS,
         id: id.toString(),
       };
       const salt = randomSalt();
@@ -671,7 +712,7 @@ export function Desk() {
         }),
       );
     } else {
-      ixs.push(...(await ensureAtas(current.publicKey, [loaded.assetMint])));
+      ixs.push(...(await prepareAssetLock(current.publicKey, loaded.assetMint, loaded.assetAmount)));
       ixs.push(
         lockSellerInstruction({
           buyer: loaded.buyer,
@@ -707,7 +748,7 @@ export function Desk() {
       const asset = new PublicKey(offer.assetMint);
       const paymentDecimals = await decimalsFor(payment);
       const price = tokenAmount(secret, paymentDecimals);
-      if (price <= 0n) throw new Error("Enter your secret limit.");
+      if (price <= 0n) throw new Error("Enter a price greater than zero.");
       const salt = randomSalt();
       const acting = offer.role === "buyer" ? "seller" : "buyer";
       const key = offerSlipKey(offer.creator, offer.id);
@@ -746,6 +787,7 @@ export function Desk() {
         }),
       ];
       if (acting === "buyer") {
+        await assertPayment(current.publicKey, payment, price);
         if (payment.equals(WRAPPED_SOL)) ixs.push(...(await wrapSolInstructions(conn, current.publicKey, price)));
         else ixs.push(...(await ensureAtas(current.publicKey, [payment])));
         ixs.push(
@@ -761,7 +803,7 @@ export function Desk() {
           }),
         );
       } else {
-        ixs.push(...(await ensureAtas(current.publicKey, [asset])));
+        ixs.push(...(await prepareAssetLock(current.publicKey, asset, tokenAmount(offer.assetAmount, await decimalsFor(asset)))));
         ixs.push(
           lockSellerInstruction({
             buyer: parties.buyer,
@@ -815,7 +857,7 @@ export function Desk() {
       const payment = new PublicKey(offer.paymentMint);
       const asset = new PublicKey(offer.assetMint);
       const existing = loadSlip(offerSlipKey(offer.creator, offer.id));
-      if (!existing) throw new Error("This browser is missing your saved limit. Restore your backup to continue.");
+      if (!existing) throw new Error("This browser is missing your saved price. Restore your backup to continue.");
       const address = dealAddress(parties.buyer, parties.seller, parties.id, CONFIG);
       const ixs: TransactionInstruction[] = [
         createDealInstruction({
@@ -830,6 +872,7 @@ export function Desk() {
         }),
       ];
       if (offer.role === "buyer") {
+        await assertPayment(current.publicKey, payment, existing.price);
         if (payment.equals(WRAPPED_SOL)) ixs.push(...(await wrapSolInstructions(conn, current.publicKey, existing.price)));
         else ixs.push(...(await ensureAtas(current.publicKey, [payment])));
         ixs.push(
@@ -889,7 +932,8 @@ export function Desk() {
       const existing = loadSlip(deal.address.toBase58()) ?? (offer ? loadSlip(offerSlipKey(offer.creator, offer.id)) : null);
       const price = existing?.price ?? tokenAmount(secret, paymentDecimals);
       const salt = existing?.salt ?? randomSalt();
-      if (price <= 0n) throw new Error("Enter your secret limit.");
+      if (price <= 0n) throw new Error("Enter a price greater than zero.");
+      if (yourRole === "buyer") await assertPayment(current.publicKey, deal.paymentMint, price);
       await lockWithSalt(current, deal, ref, yourRole, price, salt);
     } catch (err) {
       setNotice(explainError(err));
@@ -924,7 +968,7 @@ export function Desk() {
       const mine = loadSlip(deal.address.toBase58()) ?? (offer ? loadSlip(offerSlipKey(offer.creator, offer.id)) : null);
       const rawTheirs = theirSlip.trim() || loadTheirReveal(deal.address.toBase58()) || "";
       const theirs = rawTheirs ? decodeReveal(rawTheirs) : null;
-      if (!mine || !theirs) throw new Error("Settle needs both reveals. Share yours, or paste theirs if you already have it.");
+      if (!mine || !theirs) throw new Error("Settle needs both prices. Share your settle link, or paste theirs if you already have it.");
       const buyerReveal = yourRole === "buyer" ? mine : theirs;
       const sellerReveal = yourRole === "seller" ? mine : theirs;
       if (yourRole !== "buyer" && yourRole !== "seller") {
@@ -1076,7 +1120,6 @@ export function Desk() {
         label: itemTitle,
         priceText: formatAmount(opened.price, payDecimals) + " " + paymentName,
         slip: ownSlip,
-        saltHex: bytesToHex(opened.salt),
       }),
     );
   }
@@ -1108,7 +1151,7 @@ export function Desk() {
           <span>
             {live === false
               ? "Your wallet can connect on devnet. The BlindDeal program is not deployed there yet, so a lock cannot be sent."
-              : "Devnet. This is commit-reveal: your limit stays on this device until settle, when both prices appear in the transaction."}
+              : "Devnet. Your price stays on this device until you settle. Both prices still appear in that transaction."}
           </span>
           <span className={live ? "tag good" : "tag"}>{live ? "Program live" : live === false ? "Program not on devnet" : "Checking program"}</span>
         </div>
@@ -1119,10 +1162,10 @@ export function Desk() {
               {session?.signed ? <span className="tag good">Signed in</span> : session ? <span className="tag">{session.name}</span> : <span className="tag">Wallet</span>}
             </div>
             <p className="lede" style={{ fontSize: 16 }}>
-              Connect, sign, and send a link. The other side only types their secret limit.
+              Connect, sign in, and send a link. The other side only types a secret price.
             </p>
             <p className="quiet">
-              Privacy Rings is not connected yet. A settle transaction still carries both prices and salts.
+              Privacy Rings is not connected yet. When you settle, both prices still appear in the transaction.
             </p>
             {session ? (
               <div className="session-chip">
@@ -1185,7 +1228,21 @@ export function Desk() {
                 .
               </p>
             )}
-            {notice && (
+            {paymentHelp && (
+              <p className="note faucet-note" role="status">
+                {paymentHelp.text}
+                {paymentHelp.href ? (
+                  <>
+                    {" "}
+                    <a href={paymentHelp.href} target="_blank" rel="noreferrer">
+                      {paymentHelp.linkLabel ?? "Open the faucet"}
+                    </a>
+                    .
+                  </>
+                ) : null}
+              </p>
+            )}
+            {notice && notice !== paymentHelp?.text && (
               <p className="note" role="status" style={{ marginTop: 16 }}>
                 {notice}
               </p>
@@ -1223,6 +1280,23 @@ export function Desk() {
           <div>
             {showCreate && (
               <form className="form" onSubmit={(event) => void onCreate(event)}>
+                <ol className="how-mini" aria-label="How it works">
+                  <li data-step="1">
+                    <span>
+                      <strong>Set your secret price.</strong> Only you see the number.
+                    </span>
+                  </li>
+                  <li data-step="2">
+                    <span>
+                      <strong>Send the link.</strong> The other person sets theirs the same way.
+                    </span>
+                  </li>
+                  <li data-step="3">
+                    <span>
+                      <strong>Meet in the middle, or walk away.</strong> If the prices miss, nobody sees a number.
+                    </span>
+                  </li>
+                </ol>
                 <div className="row pill-row">
                   <button className={role === "seller" ? "btn small sun" : "btn small"} type="button" onClick={() => setRole("seller")}>
                     I want to sell
@@ -1232,94 +1306,43 @@ export function Desk() {
                   </button>
                 </div>
                 <label className="field">
-                  <span>Item</span>
+                  <span>{role === "seller" ? "What are you selling?" : "What do you want to buy?"}</span>
                   <input
                     className="num"
                     value={itemLabel}
                     onChange={(event) => setItemLabel(event.target.value)}
-                    placeholder="A short label the other side will see"
-                    aria-label="Item label"
+                    placeholder={role === "seller" ? "1 sticker pack" : "A short label they will see"}
+                    aria-label={role === "seller" ? "What are you selling?" : "What do you want to buy?"}
                     autoComplete="off"
                   />
                 </label>
-                <div className="form-grid">
-                  <label className="field">
-                    <span>Amount</span>
-                    <input
-                      className="num"
-                      inputMode="decimal"
-                      value={assetAmount}
-                      onChange={(event) => setAssetAmount(event.target.value)}
-                      aria-label="Asset amount"
-                      required
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Token being sold</span>
-                    <input
-                      className="num"
-                      value={assetMint}
-                      onChange={(event) => setAssetMint(event.target.value)}
-                      placeholder="Mint address"
-                      aria-label="Asset mint"
-                      autoComplete="off"
-                      required
-                    />
-                  </label>
-                </div>
-                <div className="field">
-                  <span>Paid in</span>
-                  <div className="row pill-row">
-                    <button className={paymentChoice === "sol" ? "btn small sun" : "btn small"} type="button" onClick={() => choosePayment("sol")}>
-                      Devnet SOL
-                    </button>
-                    <button className={paymentChoice === "usdc" ? "btn small sun" : "btn small"} type="button" onClick={() => choosePayment("usdc")}>
-                      Devnet USDC
-                    </button>
-                    <button className={paymentChoice === "custom" ? "btn small sun" : "btn small"} type="button" onClick={() => choosePayment("custom")}>
-                      Other mint
-                    </button>
-                  </div>
-                  {paymentChoice === "custom" && (
-                    <input
-                      className="num"
-                      value={paymentMint}
-                      onChange={(event) => setPaymentMint(event.target.value)}
-                      placeholder="Payment mint"
-                      aria-label="Payment mint"
-                      autoComplete="off"
-                      required
-                    />
-                  )}
-                </div>
-                <div className="form-grid">
-                  <label className="field">
-                    <span>{role === "buyer" ? "Your secret maximum" : "Your secret minimum"}</span>
+                <div className="price-box">
+                  <span className="field-label">{role === "seller" ? "Lowest price you'd accept" : "Most you'd pay"}</span>
+                  <p className="field-help">{secretHelper(role)}</p>
+                  <div className="price-row">
                     <input
                       className="num"
                       inputMode="decimal"
                       value={secret}
                       onChange={(event) => setSecret(event.target.value)}
-                      placeholder={"In " + tokenLabel(paymentMint) + ". Stays on this device."}
-                      aria-label="Secret limit"
+                      placeholder="0.00"
+                      aria-label={role === "seller" ? "Lowest price you'd accept" : "Most you'd pay"}
                       required
                     />
-                  </label>
-                  <label className="field">
-                    <span>Expires</span>
-                    <select className="num" value={expiry} onChange={(event) => setExpiry(event.target.value)} aria-label="Expiry">
-                      {EXPIRY_OPTIONS.map((item) => (
-                        <option key={item.seconds} value={item.seconds}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <div className="row pill-row">
+                      <button className={paymentChoice === "usdc" ? "btn small sun" : "btn small"} type="button" onClick={() => choosePayment("usdc")}>
+                        USDC
+                      </button>
+                      <button className={paymentChoice === "usdt" ? "btn small sun" : "btn small"} type="button" onClick={() => choosePayment("usdt")}>
+                        USDT
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <button className="btn sun pressable" type="submit" disabled={busy || !session}>
-                  Create deal link
+                  Get link
                 </button>
-                {!session && <p className="quiet">Connect and sign in to create a link.</p>}
+                {!session && <p className="quiet">Connect and sign in to get a link.</p>}
                 {session && live === false && (
                   <p className="quiet">You can still make a link now. Locks will send once the program is on devnet.</p>
                 )}
@@ -1338,7 +1361,9 @@ export function Desk() {
                 </ol>
                 <h3>{itemTitle === "this deal" ? "Your deal link is ready" : itemTitle}</h3>
                 <p className="quiet" style={{ marginTop: 6 }}>
-                  You are the {offer.role}. They will see the amount and token, then type only their secret limit.
+                  {offer.role === "seller"
+                    ? "You are selling " + (offer.label.trim() || "this item") + ". Send the link. They only type the most they'd pay."
+                    : "You want to buy " + (offer.label.trim() || "this item") + ". Send the link. They only type the lowest price they'd accept."}
                 </p>
                 <div className="qr-wrap">
                   <QrCode text={shareUrl} title="Deal link QR code" />
@@ -1348,27 +1373,29 @@ export function Desk() {
                   <button className="btn sun pressable" type="button" onClick={() => void copy("link", shareUrl)}>
                     {copied === "link" ? "Link copied" : "Copy link"}
                   </button>
-                  <button className="btn pressable" type="button" onClick={() => void shareLink(shareUrl, "Open this BlindDeal link and type your secret limit.")}>
+                  <button className="btn pressable" type="button" onClick={() => void shareLink(shareUrl, "Open this BlindDeal link and set your price.")}>
                     {shared ? "Shared" : "Share"}
                   </button>
-                  {ownSlip && (
-                    <button className="btn small" type="button" onClick={backup}>
-                      Download backup
-                    </button>
-                  )}
                 </div>
-                <p className="quiet">Your salt was saved on this device. Download a backup if you might switch browsers.</p>
+                {ownSlip && (
+                  <p className="quiet">
+                    A backup was saved on this device.{" "}
+                    <button className="text-link" type="button" onClick={backup}>
+                      Save backup
+                    </button>
+                  </p>
+                )}
                 {canOpenOnchain && (
                   <button className="btn sun pressable" type="button" disabled={busy || !canAct} onClick={() => void onOpenDeal()}>
-                    Open deal and lock my price
+                    Open the deal and lock my price
                   </button>
                 )}
                 {waitingReturn && (
-                  <p className="quiet">Share this return link. The buyer has to open the deal, because they sign the first transaction.</p>
+                  <p className="quiet">Send this link back so they can open the deal.</p>
                 )}
                 {live === false && <p className="quiet">Waiting for the program on devnet before a lock can be sent.</p>}
-                {live && !canOpenOnchain && !waitingReturn && <p className="quiet">Waiting for the other side to open the link and lock.</p>}
-                {canOpenOnchain && live && <p className="quiet">They joined. Open the deal and lock the limit already saved on this device.</p>}
+                {live && !canOpenOnchain && !waitingReturn && <p className="quiet">Waiting for the other side to open the link and set their price.</p>}
+                {canOpenOnchain && live && <p className="quiet">They joined. Open the deal and lock the price saved on this device.</p>}
                 <button className="btn" type="button" onClick={resetDeal}>
                   New deal
                 </button>
@@ -1376,53 +1403,26 @@ export function Desk() {
             )}
             {showJoin && offer && (
               <div className="form">
-                <div className="share-card compact">
-                  <p className="field-label">Deal summary</p>
-                  <h3>{offer.label || "Open deal"}</h3>
-                  <div className="explorer">
-                    <div className="ex-row">
-                      <span>they are</span>
-                      <strong>the {offer.role}</strong>
-                    </div>
-                    <div className="ex-row">
-                      <span>you are</span>
-                      <strong>the {offer.role === "buyer" ? "seller" : "buyer"}</strong>
-                    </div>
-                    <div className="ex-row">
-                      <span>amount</span>
-                      <strong>{offer.assetAmount}</strong>
-                    </div>
-                    <div className="ex-row">
-                      <span>token</span>
-                      <strong>{shortKey(offer.assetMint)}</strong>
-                    </div>
-                    <div className="ex-row">
-                      <span>paid in</span>
-                      <strong>{tokenLabel(offer.paymentMint)}</strong>
-                    </div>
-                    <div className="ex-row">
-                      <span>their wallet</span>
-                      <strong>{shortKey(offer.creator)}</strong>
-                    </div>
-                  </div>
-                </div>
+                <p className="lede" style={{ fontSize: 16, marginTop: 0 }}>
+                  {counterpartyPrompt(offer, shortKey(offer.creator))}
+                </p>
+                <p className="field-help">Paid in {tokenLabel(offer.paymentMint)}. {secretHelper(offer.role === "buyer" ? "seller" : "buyer")}</p>
                 <label className="field">
-                  <span>{offer.role === "buyer" ? "Your secret minimum" : "Your secret maximum"}</span>
                   <input
                     className="num"
                     inputMode="decimal"
                     value={secret}
                     onChange={(event) => setSecret(event.target.value)}
-                    placeholder={"In " + tokenLabel(offer.paymentMint) + ". Stays on this device."}
-                    aria-label="Secret limit"
+                    placeholder="0.00"
+                    aria-label={offer.role === "buyer" ? "Lowest price you'd accept" : "Most you'd pay"}
                     required
                   />
                 </label>
                 <button className="btn sun pressable" type="button" disabled={busy || !secret.trim() || (offer.role === "seller" ? !canAct : !session)} onClick={() => void onJoin()}>
-                  {offer.role === "buyer" ? "Save my price and make a return link" : "Lock my price"}
+                  Set my price
                 </button>
                 {offer.role === "buyer" && (
-                  <p className="quiet">The buyer has to sign the first transaction. You will get a return link to send back, then lock in one tap.</p>
+                  <p className="quiet">After you set your price, you will get a link to send back.</p>
                 )}
                 {live === false && offer.role === "seller" && <p className="quiet">The program is not on devnet yet, so this lock cannot be sent.</p>}
               </div>
@@ -1457,18 +1457,8 @@ export function Desk() {
                     <strong>{shortKey(deal.seller)}</strong>
                   </div>
                   <div className="ex-row">
-                    <span>asset</span>
-                    <strong>
-                      {deal.assetAmount.toString()} · {shortKey(deal.assetMint)}
-                    </strong>
-                  </div>
-                  <div className="ex-row">
                     <span>paid in</span>
                     <strong>{paymentName}</strong>
-                  </div>
-                  <div className="ex-row">
-                    <span>buyer deposit</span>
-                    <strong>{deal.buyerLocked ? formatAmount(deal.buyerDeposit, payDecimals) : "unlocked"}</strong>
                   </div>
                   <div className="ex-row">
                     <span>expires</span>
@@ -1489,7 +1479,7 @@ export function Desk() {
                         {shared ? "Shared" : "Share"}
                       </button>
                       <a className="btn small" href={explorerAddress(deal.address.toBase58())} target="_blank" rel="noreferrer">
-                        Account
+                        View on explorer
                       </a>
                     </div>
                   </div>
@@ -1500,58 +1490,61 @@ export function Desk() {
                     <>
                       {ownSlip ? (
                         <button className="btn sun pressable" type="button" disabled={busy || !canAct} onClick={() => void onLock()}>
-                          Lock my saved price
+                          Lock my price
                         </button>
                       ) : (
                         <>
                           <label className="field">
-                            <span>{yourRole === "buyer" ? "Your secret maximum" : "Your secret minimum"}</span>
+                            <span>{yourRole === "buyer" ? "Most you'd pay" : "Lowest price you'd accept"}</span>
+                            <p className="field-help">{yourRole === "buyer" || yourRole === "seller" ? secretHelper(yourRole) : ""}</p>
                             <input
                               className="num"
                               inputMode="decimal"
                               value={secret}
                               onChange={(event) => setSecret(event.target.value)}
-                              aria-label="Secret limit"
+                              placeholder="0.00"
+                              aria-label={yourRole === "buyer" ? "Most you'd pay" : "Lowest price you'd accept"}
                             />
                           </label>
                           <button className="btn sun pressable" type="button" disabled={busy || !canAct} onClick={() => void onLock()}>
-                            Lock my price
+                            Set my price
                           </button>
                         </>
                       )}
                     </>
                   )}
                 {ownSlip && (
-                  <div className="row">
-                    <button className="btn small" type="button" onClick={backup}>
-                      Download backup
+                  <p className="quiet">
+                    A backup was saved on this device.{" "}
+                    <button className="text-link" type="button" onClick={backup}>
+                      Save backup
                     </button>
-                  </div>
+                  </p>
                 )}
                 {bothLocked && !finished && (
                   <div className="note">
-                    <strong>Both sides locked.</strong> Share your reveal so you can settle in one tap. Your number stays on this device until then.
+                    <strong>Both sides locked.</strong> Share your settle link so you can finish in one tap. Your number stays on this device until then.
                     <div className="row" style={{ marginTop: 10 }}>
                       {revealUrl && (
                         <>
                           <button className="btn small sun" type="button" onClick={() => void copy("reveal", revealUrl)}>
-                            {copied === "reveal" ? "Reveal link copied" : "Copy reveal link"}
+                            {copied === "reveal" ? "Settle link copied" : "Copy settle link"}
                           </button>
-                          <button className="btn small" type="button" onClick={() => void shareLink(revealUrl, "Here is my BlindDeal reveal. Use it to settle.")}>
-                            Share reveal
+                          <button className="btn small" type="button" onClick={() => void shareLink(revealUrl, "Here is my BlindDeal settle link.")}>
+                            Share settle link
                           </button>
                         </>
                       )}
                     </div>
                     {!theirSlip && (
                       <label className="field" style={{ marginTop: 12 }}>
-                        <span>Their reveal</span>
+                        <span>Their settle link</span>
                         <textarea
                           className="area"
                           value={theirSlip}
                           onChange={(event) => setTheirSlip(event.target.value)}
-                          placeholder="Paste their reveal link or slip if they sent it another way"
-                          aria-label="Their reveal slip"
+                          placeholder="Paste their settle link if they sent it another way"
+                          aria-label="Their settle link"
                         />
                       </label>
                     )}

@@ -1,10 +1,10 @@
 import { Window } from "./Window";
 
 const steps = [
-  ["01", "Lock", "The buyer locks funds as a ceiling. The seller locks the asset and a minimum."],
-  ["02", "Seal", "Each limit is a hash plus a secret salt. The deposit everyone can see is only an upper bound."],
-  ["03", "Match", "The program checks one thing: is the max at least the min? The proofs bind the vault, so a matcher cannot redirect it."],
-  ["04", "Settle", "Overlap pays the floored midpoint and returns the rest. A miss refunds both. Raw limits are not written onto the account."],
+  ["01", "Set a price", "Each side types a secret number. Only you see yours."],
+  ["02", "Send the link", "Share it with the other person. They set their price the same way."],
+  ["03", "Meet or walk", "If the prices overlap, you meet in the middle. If they miss, both walk away and nobody sees a number."],
+  ["04", "Finish", "A match pays the midpoint and returns the rest. A miss refunds both. Your number is not stored on the deal itself."],
 ];
 
 const cases = [
@@ -65,18 +65,18 @@ export function Tech() {
           <div className="note mono">
             program blind_deal
             <br />
-            matcher clear-reveal
+            matcher on-device prices
             <br />
-            account stores hash, not price
+            account stores no price
             <br />
             rings private compare none
           </div>
           <div>
             <p className="quiet" style={{ marginTop: 0 }}>
-              Right now each price is a hash commitment. The deal account stores the hash, not the number. When you settle, those prices still appear in the transaction. Private comparison with Helius Privacy Rings is not connected yet.
+              Right now each price stays secret on this device. The deal account does not store the number. When you settle, those prices still appear in the transaction. Private comparison with Helius Privacy Rings is not connected yet.
             </p>
             <div className="road" style={{ marginTop: 14 }}>
-              <span className="tag sun">Now · hash commitments</span>
+              <span className="tag sun">Now · secret prices</span>
               <span className="tag">Next · TEE or MPC compare</span>
               <span className="tag">Later · an agent that locks your band</span>
             </div>

@@ -251,19 +251,17 @@ export function saltBackupText(input: {
   label: string;
   priceText: string;
   slip: string;
-  saltHex: string;
 }): string {
   return [
-    "BlindDeal reveal backup",
+    "BlindDeal backup",
     "Deal: " + input.deal,
     input.label ? "Item: " + input.label : "",
     "Role: " + input.role,
-    "Limit: " + input.priceText,
-    "Salt: " + input.saltHex,
-    "Slip: " + input.slip,
+    "Your price: " + input.priceText,
+    "Backup code: " + input.slip,
     "Saved: " + new Date().toISOString(),
     "",
-    "Keep this file. You need it to settle if this browser is cleared.",
+    "Keep this file. You need it to finish the deal if this browser is cleared.",
     "",
   ]
     .filter((line, index, all) => line !== "" || all[index - 1] !== "")

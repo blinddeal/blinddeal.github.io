@@ -4,7 +4,7 @@ import { Mascot } from "./Mascot";
 import { Window } from "./Window";
 
 const pitch =
-  "Lock a hash of your price. If the ranges overlap, the deal settles at the midpoint. Settle still carries both prices in that transaction.";
+  "Set a secret price. If the two prices meet, the deal clears at the midpoint. If they miss, both walk away and nobody sees a number.";
 
 export function Hero() {
   const root = useRef<HTMLElement>(null);

@@ -77,20 +77,20 @@ test("Ed25519 signatures on a SIWS message verify for the matching wallet", asyn
   assert.equal(typeof bytesToBase64(signature), "string");
 });
 
-test("salt backup text keeps the deal, limit, salt, and slip", () => {
+test("backup text keeps the deal, price, and backup code without jargon", () => {
   const text = saltBackupText({
     deal: "Deal111111111111111111111111111111111111111",
     role: "seller",
     label: "One rare sticker",
-    priceText: "1.5 SOL",
+    priceText: "1.5 USDC",
     slip: "AQID",
-    saltHex: "aa".repeat(32),
   });
-  assert.match(text, /BlindDeal reveal backup/);
+  assert.match(text, /BlindDeal backup/);
   assert.match(text, /Item: One rare sticker/);
-  assert.match(text, /Limit: 1.5 SOL/);
-  assert.match(text, /Slip: AQID/);
+  assert.match(text, /Your price: 1.5 USDC/);
+  assert.match(text, /Backup code: AQID/);
   assert.match(text, /Keep this file/);
+  assert.doesNotMatch(text, /salt|slip|hash|mint|lamports|PDA|nonce/i);
 });
 
 test("insufficient funds errors point at the devnet faucet", () => {
